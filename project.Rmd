@@ -1,0 +1,46 @@
+---
+title: "Human Activity Recognition Project"
+author: "Barbier de Reuille, Pierre"
+date: "17/12/2014"
+output: html_document
+---
+
+Introduction
+============
+
+In this project, we are going to analyse data about weight lifted exercises coming from http://groupware.les.inf.puc-rio.br/har.
+In this experiment, the team asked a number of non-experienced weight lifters to exercise either correctly or incorrectly,
+but with a specific error. The exercise was supervied by an experienced trainer to ensure it was performed either correctly
+or with the right error.
+
+The data is loaded like this:
+
+```{r}
+# Libraries needed for the whole study
+library(ggplot2)
+library(caret)
+library(dplyr)
+library(randomForest)
+
+data <- tbl_df(read.csv("pml-training.csv"))
+```
+
+Cleaning the data
+=================
+
+First, the data contained some division by zero errors. These have been replaced by simple NA using a standard text editor.
+
+In the datasets, many variables
+
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
