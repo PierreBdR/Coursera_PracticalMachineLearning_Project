@@ -67,7 +67,9 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 library(ggplot2)
 library(caret)
 library(dplyr)
-library(randomForest)</code></pre>
+library(randomForest)
+library(doMC)
+registerDoMC(cores=4)</code></pre>
 <pre class="r"><code>data &lt;- tbl_df(read.csv(&quot;pml-training.csv&quot;))
 dim(data)</code></pre>
 <pre><code>## [1] 19622   160</code></pre>
@@ -91,19 +93,79 @@ dim(clean_data)</code></pre>
 </div>
 <div id="cross-validation" class="section level2">
 <h2>Cross-Validation</h2>
-<p>For the cross validation, we are going to split the samples along the <code>classe</code> variable to ensure we have representative of all the classes in the test set:</p>
-<pre class="r"><code>inTrain &lt;- createDataPartition(clean_data$classe, p=0.8, list=FALSE)
+<p>For the cross validation, we are going to split the samples along the <code>classe</code> variable to ensure we have representative of all the classes in the test set. As we have a lot of data and variables, we are going to split the dataset halfway into a training and testing dataset:</p>
+<pre class="r"><code>inTrain &lt;- createDataPartition(clean_data$classe, p=0.5, list=FALSE)
 training &lt;- clean_data[inTrain,]
 testing &lt;- clean_data[-inTrain,]</code></pre>
+<p>However, given the time needed to create a single estimator, we are not going to use this for model selection. It is worth noting that the caret random forest method will itself use bootstrapping to select the best tree.</p>
 </div>
 <div id="preprocessing-of-the-data" class="section level2">
 <h2>Preprocessing of the data</h2>
-<p>To reduce the number of variables, we use PC analysis, keeping 95% of the variability:</p>
+<p>To reduce the number of variables, we use PC analysis, keeping 95% of the variability, and put back the classes:</p>
 <pre class="r"><code>numTraining &lt;- select(training, -classe)
-preProcPC &lt;- preProcess(numTraining, method=c(&quot;center&quot;, &quot;scale&quot;, &quot;pca&quot;), thresh=0.95)
+preProcPC &lt;- preProcess(numTraining, method=c(&quot;pca&quot;), thresh=0.9)
 trainPC &lt;- preProcPC %&gt;%
   predict(numTraining) %&gt;%
   mutate(classe=training$classe)</code></pre>
+</div>
+<div id="using-the-random-forest" class="section level2">
+<h2>Using the Random Forest</h2>
+<p>We now use the main classification algorithm: the random forest.</p>
+<pre class="r"><code>PCForestFit &lt;- train(classe ~ ., data=trainPC, method=&quot;rf&quot;, prox=TRUE)</code></pre>
+</div>
+<div id="accuracy-predictions" class="section level2">
+<h2>Accuracy predictions</h2>
+<p>To evaluate the accuracy, we are going to use the testing subset of the original data, and assume all the outcome are equiprobable:</p>
+<pre class="r"><code>PCtesting &lt;- predict(preProcPC, select(testing, -classe))
+predPCForest &lt;- predict(PCForestFit, PCtesting)
+confusionForest &lt;- confusionMatrix(predPCForest, testing$classe, prevalence=c(A=0.2, B=0.2, C=0.2, D=0.2, E=0.2))
+print(confusionForest)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2746   43    7   12    1
+##          B   21 1802   35    7   14
+##          C   14   51 1630   80   23
+##          D    8    2   34 1505   15
+##          E    1    0    5    4 1750
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.9616          
+##                  95% CI : (0.9576, 0.9653)
+##     No Information Rate : 0.2844          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.9514          
+##  Mcnemar's Test P-Value : 1.713e-10       
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9842   0.9494   0.9527   0.9359   0.9706
+## Specificity            0.9910   0.9903   0.9793   0.9928   0.9988
+## Pos Pred Value         0.9648   0.9606   0.9199   0.9702   0.9949
+## Neg Pred Value         0.9960   0.9874   0.9881   0.9841   0.9927
+## Prevalence             0.2000   0.2000   0.2000   0.2000   0.2000
+## Detection Rate         0.2799   0.1837   0.1662   0.1534   0.1784
+## Detection Prevalence   0.2863   0.1915   0.1833   0.1594   0.1794
+## Balanced Accuracy      0.9876   0.9698   0.9660   0.9644   0.9847</code></pre>
+<p>The interesting line is the Positive Predictive Value, which tells us how likely is the answer is of the predicted class, depending on the prediction. The model then gives us the predicted overall accuracy with a confidence interval:</p>
+<pre class="r"><code>confusionForest$overall[c(&quot;Accuracy&quot;, &quot;AccuracyLower&quot;, &quot;AccuracyUpper&quot;)]</code></pre>
+<pre><code>##      Accuracy AccuracyLower AccuracyUpper 
+##     0.9615698     0.9575753     0.9652872</code></pre>
+</div>
+<div id="predictions-on-the-testing-dataset" class="section level2">
+<h2>Predictions on the testing dataset</h2>
+<pre class="r"><code>test_columns &lt;- keep_columns[which(keep_columns != &quot;classe&quot;)]
+test &lt;- tbl_df(read.csv(&quot;pml-testing.csv&quot;))[test_columns]
+
+testPC &lt;- predict(preProcPC, test)
+testPredictions &lt;- predict(PCForestFit, testPC)
+print(testPredictions)</code></pre>
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E</code></pre>
 </div>
 
 
